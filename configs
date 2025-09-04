@@ -1,0 +1,86 @@
+⏺ I'll provide you with the AWS CLI commands to create the IAM role for OIDC authentication:
+
+  1. Create the OIDC Identity Provider (if it doesn't exist):
+  aws iam create-open-id-connect-provider \
+    --url https://token.actions.githubusercontent.com \
+    --thumbprint-list 6938fd4d98bab03faadb97b34396831e3780aea1 \
+    --client-id-list sts.amazonaws.com
+
+  2. Create the trust policy file:
+  cat > trust-policy.json << 'EOF'
+  {
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Effect": "Allow",
+        "Principal": {
+          "Federated": "arn:aws:iam::ACCOUNT_ID:oidc-provider/token.actions.githubusercontent.com"
+        },
+        "Action": "sts:AssumeRoleWithWebIdentity",
+        "Condition": {
+          "StringEquals": {
+            "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
+          },
+          "StringLike": {
+            "token.actions.githubusercontent.com:sub": "repo:USERNAME/REPO_NAME:*"
+          }
+        }
+      }
+    ]
+  }
+  EOF
+
+  3. Create the IAM role:
+  aws iam create-role \
+    --role-name GitHubActionsRole \
+    --assume-role-policy-document file://trust-policy.json \
+    --description "Role for GitHub Actions OIDC"
+
+  4. Create the permissions policy:
+  cat > permissions-policy.json << 'EOF'
+  {
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Effect": "Allow",
+        "Action": [
+          "ecr:GetAuthorizationToken",
+          "ecr:BatchCheckLayerAvailability",
+          "ecr:GetDownloadUrlForLayer",
+          "ecr:BatchGetImage",
+          "ecr:InitiateLayerUpload",
+          "ecr:UploadLayerPart",
+          "ecr:CompleteLayerUpload",
+          "ecr:PutImage",
+          "ecr:CreateRepository",
+          "ecr:DescribeRepositories"
+        ],
+        "Resource": "*"
+      },
+      {
+        "Effect": "Allow",
+        "Action": ["sts:GetCallerIdentity"],
+        "Resource": "*"
+      }
+    ]
+  }
+  EOF
+
+  5. Create and attach the policy:
+  aws iam create-policy \
+    --policy-name GitHubActionsPolicy \
+    --policy-document file://permissions-policy.json
+
+  aws iam attach-role-policy \
+    --role-name GitHubActionsRole \
+    --policy-arn arn:aws:iam::ACCOUNT_ID:policy/GitHubActionsPolicy
+
+  6. Get the role ARN:
+  aws iam get-role --role-name GitHubActionsRole --query 'Role.Arn' --output text
+
+  Replace these values:
+  - ACCOUNT_ID with your AWS account ID
+  - USERNAME with romsharon98
+  - REPO_NAME with test
+
+  Then add the role ARN as AWS_ROLE_ARN secret in your GitHub repository.
