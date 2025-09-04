@@ -18,7 +18,6 @@ jobs:
     runs-on: ubuntu-latest
     needs: detect-changes
     if: needs.detect-changes.outputs.has-changes == 'true'
-    environment: production
     steps:
       - name: Checkout code
         uses: actions/checkout@v4

@@ -5,10 +5,13 @@ on:
     tags:
       - '*/**'  # Matches any tag with format image/version
 
+permissions:
+  contents: read
+  actions: read
+
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
-    environment: production
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -72,19 +75,3 @@ jobs:
           ./build-dockerfile.sh $IMAGE_NAME --region $AWS_REGION --tag $IMAGE_TAG --push
           
           echo "✅ Successfully built and pushed $IMAGE_NAME:$IMAGE_TAG for tag ${{ steps.tag-info.outputs.tag_name }}"
-
-      - name: Create GitHub Release
-        if: success()
-        run: |
-          IMAGE_NAME="${{ steps.tag-info.outputs.image_name }}"
-          VERSION="${{ steps.tag-info.outputs.version }}"
-          IMAGE_TAG="$IMAGE_NAME/$VERSION"
-          TAG_NAME="${{ steps.tag-info.outputs.tag_name }}"
-          
-          # Create a release for this image
-          gh release create "$TAG_NAME" \
-            --title "$IMAGE_NAME $VERSION" \
-            --notes "Docker image $IMAGE_NAME version $VERSION has been built and pushed to ECR" \
-            --target ${{ github.ref_name }}
-          
-          echo "✅ Created GitHub release: $TAG_NAME"
