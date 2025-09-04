@@ -3,6 +3,10 @@ name: Create Tags for Changed Images
 on:
   workflow_dispatch
 
+permissions:
+  contents: write
+  actions: read
+
 jobs:
   detect-changes:
     uses: ./.github/workflows/change-detection.yml
