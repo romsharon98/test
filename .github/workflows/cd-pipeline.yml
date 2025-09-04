@@ -31,6 +31,13 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
+      - name: Debug AWS Role ARN
+        run: |
+          echo "AWS_ROLE_ARN length: ${#AWS_ROLE_ARN}"
+          echo "AWS_ROLE_ARN starts with: ${AWS_ROLE_ARN:0:20}"
+        env:
+          AWS_ROLE_ARN: ${{ secrets.AWS_ROLE_ARN }}
+
       - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
