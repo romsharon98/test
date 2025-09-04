@@ -3,7 +3,7 @@ name: Tag Trigger - Build and Push Image
 on:
   push:
     tags:
-      - '*/**'  # Matches any tag with format image/version
+      - '*/*'  # Matches any tag with format image/version
 
 permissions:
   contents: read
