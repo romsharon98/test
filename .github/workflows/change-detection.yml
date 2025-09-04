@@ -45,9 +45,14 @@ jobs:
             BASE_SHA="${{ github.event.pull_request.base.sha }}"
             HEAD_SHA="${{ github.sha }}"
           else
-            # For push events, compare with previous commit
+            # For push events or manual dispatch, compare with previous commit
             BASE_SHA="${{ github.event.before }}"
             HEAD_SHA="${{ github.sha }}"
+            
+            # If BASE_SHA is empty (manual dispatch), use HEAD~1
+            if [ -z "$BASE_SHA" ]; then
+              BASE_SHA="$HEAD_SHA~1"
+            fi
           fi
 
           echo "Comparing $BASE_SHA..$HEAD_SHA"
@@ -65,7 +70,7 @@ jobs:
             ["batch-monitor"]="^impalaai/|^impala-utils/|images/build-dockerfile\.sh"
             ["mock-client"]="images/Dockerfiles/mock-client/|images/build-dockerfile\.sh"
             ["metrics-collector"]="^monitoring/|images/build-dockerfile\.sh"
-            ["infrastructure-monitoring"]="impalaai/infrastructure_monitor\.py|^impala-utils/|images/build-dockerfile\.sh"
+            ["infrastructure-monitoring"]="^impalaai/|^impala-utils/|images/build-dockerfile\.sh"
           )
 
           # Check each image pattern
