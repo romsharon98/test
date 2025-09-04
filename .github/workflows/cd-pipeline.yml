@@ -115,7 +115,7 @@ jobs:
             fi
             
             # Build and push image first
-            IMAGE_TAG="$image/$VERSION"
+            IMAGE_TAG="$VERSION"
             AWS_REGION="${{ vars.AWS_REGION || 'us-east-1' }}"
             
             echo "Building $image with tag $IMAGE_TAG"
