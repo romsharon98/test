@@ -1,0 +1,40 @@
+name: Require Linear bot comment or Dependabot
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened, ready_for_review]
+
+permissions:
+  pull-requests: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/github-script@v7
+        with:
+          script: |
+            const {owner, repo} = context.repo;
+            const prNumber = context.payload.pull_request.number;
+
+            // Check if PR is created by Dependabot
+            const isDependabot = context.payload.pull_request.user?.login === 'dependabot[bot]';
+            
+            if (isDependabot) {
+              console.log('Dependabot PR detected - skipping Linear issue requirement');
+              return;
+            }
+
+            // Get PR comments (issues API since PRs are issues)
+            const comments = await github.rest.issues.listComments({
+              owner, repo, issue_number: prNumber, per_page: 100
+            });
+
+            // Accept a Linear URL or ISSUE-123 pattern
+            const hasLinear = comments.data.some(c =>
+              (c.user?.login === 'linear[bot]') &&
+              /(linear\.app\/[^/]+\/issue\/[A-Z]{2,}-\d+|[A-Z]{2,}-\d+)/.test(c.body || '')
+            );
+
+            if (!hasLinear) {
+              core.setFailed("PR must be either linked with a Linear issue OR created by Dependabot. Missing Linear bot comment with a ticket/link.");
+            }

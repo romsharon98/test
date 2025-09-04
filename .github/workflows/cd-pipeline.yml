@@ -1,0 +1,115 @@
+name: Create Tags for Changed Images
+
+on:
+  workflow_dispatch
+
+jobs:
+  detect-changes:
+    uses: ./.github/workflows/change-detection.yml
+    with:
+      base_sha: ${{ github.event.before || '' }}
+      head_sha: ${{ github.sha }}
+
+  create-tags:
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.has-changes == 'true'
+    environment: production
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Create tags for changed images
+        run: |
+          echo "## 🏷️ Creating Tags for Changed Images" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          # Image configuration data
+          cat > /tmp/image_config.json << 'EOF'
+          {
+            "mock-client": {
+              "dockerfile": "images/Dockerfiles/mock-client/Dockerfile",
+              "version_type": "dockerfile"
+            },
+            "metrics-collector": {
+              "dockerfile": "monitoring/Dockerfile.metrics_collector",
+              "version_type": "dockerfile"
+            },
+            "infrastructure-monitoring": {
+              "dockerfile": "impalaai/Dockerfile.infrastructure_monitoring",
+              "version_type": "dockerfile"
+            },
+            "workload-runner": {
+              "dockerfile": "runner/Dockerfile",
+              "version_type": "pyproject",
+              "package_path": "runner/"
+            },
+            "batch-monitor": {
+              "dockerfile": "impalaai/Dockerfile.batch-monitor",
+              "version_type": "pyproject",
+              "package_path": "impalaai/"
+            }
+          }
+          EOF
+          
+          # Process only changed images detected by change detection
+          CHANGED_IMAGES='${{ needs.detect-changes.outputs.changed-images }}'
+          echo "Manual trigger: processing changed images: $CHANGED_IMAGES"
+          echo "## 🖱️ Manual Trigger - Processing Changed Images" >> $GITHUB_STEP_SUMMARY
+          
+          if [ -z "$CHANGED_IMAGES" ]; then
+            echo "No images to process"
+            echo "## ℹ️ No Images" >> $GITHUB_STEP_SUMMARY
+            echo "No images to process, so no tags will be created." >> $GITHUB_STEP_SUMMARY
+            exit 0
+          fi
+          
+          # Create tags for each changed image
+          for image in $CHANGED_IMAGES; do
+            echo "Processing $image..."
+            
+            # Extract image configuration using jq
+            DOCKERFILE=$(jq -r ".\"$image\".dockerfile" /tmp/image_config.json)
+            VERSION_TYPE=$(jq -r ".\"$image\".version_type" /tmp/image_config.json)
+            PACKAGE_PATH=$(jq -r ".\"$image\".package_path" /tmp/image_config.json)
+            
+            # Extract version based on type
+            if [ "$VERSION_TYPE" == "dockerfile" ]; then
+              VERSION=$(grep '^# Version:' $DOCKERFILE | cut -d' ' -f3)
+              echo "Extracted version from Dockerfile: $VERSION"
+            elif [ "$VERSION_TYPE" == "pyproject" ]; then
+              VERSION=$(grep '^version = ' ${PACKAGE_PATH}pyproject.toml | cut -d'"' -f2)
+              echo "Extracted version from pyproject.toml: $VERSION"
+            fi
+            
+            if [ -z "$VERSION" ]; then
+              echo "❌ No version found for $image"
+              continue
+            fi
+            
+            # Create tag
+            TAG_NAME="$image/$VERSION"
+            echo "Creating tag: $TAG_NAME"
+            
+            # Create and push tag
+            git tag -a "$TAG_NAME" -m "Release $image version $VERSION"
+            git push origin "$TAG_NAME"
+            
+            echo "✅ Created tag: $TAG_NAME" >> $GITHUB_STEP_SUMMARY
+            echo "- **Image**: $image" >> $GITHUB_STEP_SUMMARY
+            echo "- **Version**: $VERSION" >> $GITHUB_STEP_SUMMARY
+            echo "- **Tag**: \`$TAG_NAME\`" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          done
+          
+          echo "## 🚀 Next Steps" >> $GITHUB_STEP_SUMMARY
+          echo "Tags have been created and will trigger CD workflows to build and push images to ECR." >> $GITHUB_STEP_SUMMARY
+          echo "GitHub releases will be created automatically for each built image." >> $GITHUB_STEP_SUMMARY

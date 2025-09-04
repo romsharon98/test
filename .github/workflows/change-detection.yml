@@ -1,0 +1,95 @@
+name: Change Detection Utility
+
+on:
+  workflow_call:
+    inputs:
+      base_sha:
+        description: 'Base SHA for comparison (optional)'
+        required: false
+        type: string
+      head_sha:
+        description: 'Head SHA for comparison (optional)'
+        required: false
+        type: string
+    outputs:
+      matrix:
+        description: 'Matrix of changed images'
+        value: ${{ jobs.detect-changes.outputs.matrix }}
+      has-changes:
+        description: 'Whether any images have changes'
+        value: ${{ jobs.detect-changes.outputs.has-changes }}
+      changed-images:
+        description: 'List of changed image names'
+        value: ${{ jobs.detect-changes.outputs.changed-images }}
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.changes.outputs.matrix }}
+      has-changes: ${{ steps.changes.outputs.has-changes }}
+      changed-images: ${{ steps.changes.outputs.changed-images }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect changes
+        id: changes
+        run: |
+          # Determine base and head SHA
+          if [ -n "${{ inputs.base_sha }}" ] && [ -n "${{ inputs.head_sha }}" ]; then
+            BASE_SHA="${{ inputs.base_sha }}"
+            HEAD_SHA="${{ inputs.head_sha }}"
+          elif [ "${{ github.event_name }}" == "pull_request" ]; then
+            BASE_SHA="${{ github.event.pull_request.base.sha }}"
+            HEAD_SHA="${{ github.sha }}"
+          else
+            # For push events, compare with previous commit
+            BASE_SHA="${{ github.event.before }}"
+            HEAD_SHA="${{ github.sha }}"
+          fi
+
+          echo "Comparing $BASE_SHA..$HEAD_SHA"
+          CHANGED_FILES=$(git diff --name-only $BASE_SHA $HEAD_SHA)
+
+          echo "Changed files:"
+          echo "$CHANGED_FILES"
+
+          # Build matrix of images to build
+          IMAGES_TO_BUILD=()
+
+          # Define image to pattern mappings
+          declare -A IMAGE_PATTERNS=(
+            ["workload-runner"]="^runner/|^impala-utils/|images/build-dockerfile\.sh"
+            ["batch-monitor"]="^impalaai/|^impala-utils/|images/build-dockerfile\.sh"
+            ["mock-client"]="images/Dockerfiles/mock-client/|images/build-dockerfile\.sh"
+            ["metrics-collector"]="^monitoring/|images/build-dockerfile\.sh"
+            ["infrastructure-monitoring"]="impalaai/infrastructure_monitor\.py|^impala-utils/|images/build-dockerfile\.sh"
+          )
+
+          # Check each image pattern
+          for image in "${!IMAGE_PATTERNS[@]}"; do
+            pattern="${IMAGE_PATTERNS[$image]}"
+            if echo "$CHANGED_FILES" | grep -E "($pattern)"; then
+              IMAGES_TO_BUILD+=("$image")
+              echo "✅ $image build will be triggered"
+            fi
+          done
+
+          # Create JSON matrix
+          if [ ${#IMAGES_TO_BUILD[@]} -eq 0 ]; then
+            echo "No images to build"
+            echo "has-changes=false" >> $GITHUB_OUTPUT
+            echo "matrix={\"image\":[]}" >> $GITHUB_OUTPUT
+            echo "changed-images=" >> $GITHUB_OUTPUT
+          else
+            echo "Images to build: ${IMAGES_TO_BUILD[*]}"
+            echo "has-changes=true" >> $GITHUB_OUTPUT
+            # Convert array to JSON
+            MATRIX_JSON=$(printf '%s\n' "${IMAGES_TO_BUILD[@]}" | jq -R . | jq -s -c '{image: .}')
+            echo "matrix=$MATRIX_JSON" >> $GITHUB_OUTPUT
+            # Also create a simple list for easier parsing
+            CHANGED_LIST=$(printf '%s\n' "${IMAGES_TO_BUILD[@]}" | tr '\n' ' ')
+            echo "changed-images=$CHANGED_LIST" >> $GITHUB_OUTPUT
+          fi
