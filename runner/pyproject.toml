@@ -1,1 +1,51 @@
-# Vers
+[project]
+name = "workload-runner"
+version = "0.1.0"
+description = "Lightweight Impala workloads runner that polls S3 for prompt files and streams results back."
+requires-python = ">=3.9"
+dependencies = [
+    "boto3==1.39.11",
+    "requests==2.32.5",
+    "aiohttp==3.12.15",
+    "aioboto3==15.1.0",
+    "tqdm==4.67.1",
+    "kubernetes==33.1.0",
+    "transformers==4.56.0",
+    "Jinja2==3.1.6",
+    "impala-utils",
+]
+readme = "README.md"
+
+[project.optional-dependencies]
+test = [
+    "moto[boto3]==5.1.11",
+]
+dev = [
+    "boto3-stubs[all]==1.39.11",
+    "types-aioboto3[all]==15.1.0",
+]
+
+[tool.pytest.ini_options]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]
+
+[tool.black]
+line-length = 120
+
+[tool.isort]
+profile = "black"
+line_length = 120
+sections = ["FUTURE", "STDLIB", "THIRDPARTY", "INTERNAL", "FIRSTPARTY", "LOCALFOLDER"]
+known_internal = ["impala_utils"]
+
+
+[project.scripts]
+workload-runner = "workload_runner.main:main"
+
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages]
+find = {}
