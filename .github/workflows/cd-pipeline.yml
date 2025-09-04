@@ -6,6 +6,7 @@ on:
 permissions:
   contents: write
   actions: read
+  id-token: write   # Required for OIDC authentication
 
 jobs:
   detect-changes:
@@ -30,12 +31,12 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Configure AWS credentials
+      - name: Configure AWS credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          role-session-name: GitHubActions-${{ github.run_id }}
+          aws-region: ${{ vars.AWS_REGION || 'us-east-1' }}
 
       - name: Create tags for changed images
         run: |
@@ -107,7 +108,7 @@ jobs:
             
             # Build and push image first
             IMAGE_TAG="$image/$VERSION"
-            AWS_REGION="${{ secrets.AWS_REGION }}"
+            AWS_REGION="${{ vars.AWS_REGION || 'us-east-1' }}"
             
             echo "Building $image with tag $IMAGE_TAG"
             echo "AWS Region: $AWS_REGION"
