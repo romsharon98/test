@@ -45,14 +45,24 @@ jobs:
             BASE_SHA="${{ github.event.pull_request.base.sha }}"
             HEAD_SHA="${{ github.sha }}"
           else
-            # For push events or manual dispatch, compare with previous commit
-            BASE_SHA="${{ github.event.before }}"
-            HEAD_SHA="${{ github.sha }}"
-            
-            # If BASE_SHA is empty (manual dispatch), use HEAD~1
-            if [ -z "$BASE_SHA" ]; then
-              BASE_SHA="$HEAD_SHA~1"
+            # For push events and manual triggers, compare with last tagged commit
+            LAST_TAG=$(git describe --tags --abbrev=0 --match="*/*" 2>/dev/null || echo "")
+            if [ -n "$LAST_TAG" ]; then
+              LAST_TAG_SHA=$(git rev-list -n 1 "$LAST_TAG" 2>/dev/null || echo "")
+              if [ -n "$LAST_TAG_SHA" ]; then
+                BASE_SHA="$LAST_TAG_SHA"
+                echo "Using last tagged commit as base: $LAST_TAG ($LAST_TAG_SHA)"
+              else
+                # Fallback to previous commit if tag SHA resolution fails
+                BASE_SHA="${{ github.event.before }}"
+                echo "Warning: Could not resolve tag SHA, using previous commit"
+              fi
+            else
+              # Fallback to previous commit if no tags exist
+              BASE_SHA="${{ github.event.before }}"
+              echo "No tags found, using previous commit"
             fi
+            HEAD_SHA="${{ github.sha }}"
           fi
 
           echo "Comparing $BASE_SHA..$HEAD_SHA"
@@ -70,7 +80,7 @@ jobs:
             ["batch-monitor"]="^impalaai/|^impala-utils/|images/build-dockerfile\.sh"
             ["mock-client"]="images/Dockerfiles/mock-client/|images/build-dockerfile\.sh"
             ["metrics-collector"]="^monitoring/|images/build-dockerfile\.sh"
-            ["infrastructure-monitoring"]="^impalaai/|^impala-utils/|images/build-dockerfile\.sh"
+            ["infrastructure-monitoring"]="impalaai/infrastructure_monitor\.py|^impala-utils/|images/build-dockerfile\.sh"
           )
 
           # Check each image pattern
