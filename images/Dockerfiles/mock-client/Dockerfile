@@ -6,4 +6,4 @@ WORKDIR /app
 
 COPY . .
 
-CMD ["python", "mock_client.py"]
+CMD ["python", "mock_clientt]
