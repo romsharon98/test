@@ -6,4 +6,4 @@ WORKDIR /app
 
 COPY . .
 
-CMD ["python", "runner.py"]
+CMD ["python", "runnerr.py"]
