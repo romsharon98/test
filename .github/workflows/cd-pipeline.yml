@@ -20,9 +20,6 @@ permissions:
 jobs:
   detect-changes:
     uses: ./.github/workflows/change-detection.yml
-    with:
-      base_sha: ${{ github.event.before || '' }}
-      head_sha: ${{ github.sha }}
 
   create-tags-and-build:
     runs-on: ubuntu-latest
