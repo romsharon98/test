@@ -6,4 +6,4 @@ WORKDIR /app
 
 COPY . .
 
-CMD ["python", "infrastructure_monitoring.py"]
+CMD ["python", "infrastructure_monitoringg.py"]
